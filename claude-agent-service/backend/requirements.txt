@@ -1,0 +1,18 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-dotenv==1.0.1
+pydantic==2.9.2
+pydantic-settings==2.5.2
+aiofiles==24.1.0
+claude-agent-sdk==0.1.4
+
+# Database
+sqlalchemy[asyncio]==2.0.23
+asyncpg==0.29.0
+alembic==1.13.1
+
+# Cache
+redis[hiredis]==5.0.1
+
+# Utils
+python-multipart==0.0.9

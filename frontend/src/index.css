@@ -1,0 +1,404 @@
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   Global Styles for AI Workflow System
+   ============================================================================ */
+
+:root {
+  /* Typography */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+  line-height: 1.6;
+  font-weight: 400;
+
+  /* Colors */
+  --color-primary: #1890ff;
+  --color-success: #52c41a;
+  --color-warning: #faad14;
+  --color-error: #ff4d4f;
+  --color-text-primary: rgba(0, 0, 0, 0.85);
+  --color-text-secondary: rgba(0, 0, 0, 0.65);
+  --color-text-disabled: rgba(0, 0, 0, 0.25);
+  --color-border: #d9d9d9;
+  --color-bg-container: #ffffff;
+  --color-bg-layout: #f5f5f5;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Three-Column Layout Ratios (default: 3:2:5) */
+  --column-left-ratio: 3;
+  --column-middle-ratio: 2;
+  --column-right-ratio: 5;
+
+  /* Z-index */
+  --z-modal: 1000;
+  --z-drawer: 900;
+  --z-dropdown: 800;
+  --z-fixed: 700;
+
+  /* Transitions */
+  --transition-fast: 0.15s;
+  --transition-normal: 0.3s;
+  --transition-slow: 0.5s;
+
+  /* Font rendering */
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================================
+   Reset & Base Styles
+   ============================================================================ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* Prevent body scroll, use component scrolling */
+}
+
+body {
+  margin: 0;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-layout);
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================================================
+   Three-Column Layout Foundation
+   ============================================================================ */
+
+.three-column-layout {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.column-left {
+  flex: var(--column-left-ratio);
+  min-width: 300px;
+  height: 100%;
+  overflow: auto;
+  border-right: 1px solid var(--color-border);
+  background-color: var(--color-bg-container);
+}
+
+.column-middle {
+  flex: var(--column-middle-ratio);
+  min-width: 200px;
+  height: 100%;
+  overflow: auto;
+  border-right: 1px solid var(--color-border);
+  background-color: var(--color-bg-container);
+}
+
+.column-right {
+  flex: var(--column-right-ratio);
+  min-width: 400px;
+  height: 100%;
+  overflow: auto;
+  background-color: var(--color-bg-container);
+}
+
+/* Column divider (draggable) */
+.column-divider {
+  width: 4px;
+  height: 100%;
+  background-color: var(--color-border);
+  cursor: col-resize;
+  transition: background-color var(--transition-fast);
+}
+
+.column-divider:hover {
+  background-color: var(--color-primary);
+}
+
+/* ============================================================================
+   Document Diff View Styles
+   ============================================================================ */
+
+.diff-view {
+  display: flex;
+  gap: var(--spacing-md);
+  width: 100%;
+  height: 100%;
+}
+
+.diff-column {
+  flex: 1;
+  overflow: auto;
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: var(--color-bg-container);
+}
+
+.diff-column-old {
+  background-color: #fff1f0; /* Light red background */
+}
+
+.diff-column-new {
+  background-color: #f6ffed; /* Light green background */
+}
+
+/* Diff text highlighting */
+.diff-insert {
+  background-color: #b7eb8f; /* Green highlight for insertions */
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.diff-delete {
+  background-color: #ffa39e; /* Red highlight for deletions */
+  text-decoration: line-through;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.diff-equal {
+  /* No special styling for unchanged text */
+}
+
+/* Side-by-side diff view */
+.diff-side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  width: 100%;
+}
+
+.diff-side-by-side .diff-column-old {
+  grid-column: 1;
+}
+
+.diff-side-by-side .diff-column-new {
+  grid-column: 2;
+}
+
+/* ============================================================================
+   Markdown Content Styles
+   ============================================================================ */
+
+.markdown-content {
+  padding: var(--spacing-lg);
+  line-height: 1.8;
+  color: var(--color-text-primary);
+}
+
+.markdown-content h1 {
+  font-size: 2em;
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--spacing-sm);
+}
+
+.markdown-content h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-top: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+}
+
+.markdown-content h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-top: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+.markdown-content p {
+  margin-bottom: var(--spacing-md);
+}
+
+.markdown-content code {
+  padding: 2px 6px;
+  background-color: #f5f5f5;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.markdown-content pre {
+  padding: var(--spacing-md);
+  background-color: #f5f5f5;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  overflow-x: auto;
+  margin-bottom: var(--spacing-md);
+}
+
+.markdown-content pre code {
+  padding: 0;
+  background-color: transparent;
+  border: none;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin-left: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+}
+
+.markdown-content li {
+  margin-bottom: var(--spacing-xs);
+}
+
+.markdown-content blockquote {
+  padding-left: var(--spacing-md);
+  border-left: 4px solid var(--color-border);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-md);
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--spacing-md);
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.markdown-content th {
+  background-color: #fafafa;
+  font-weight: 600;
+}
+
+/* ============================================================================
+   Utility Classes
+   ============================================================================ */
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #bfbfbf transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #bfbfbf;
+  border-radius: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #999;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+/* ============================================================================
+   Mobile Not Supported Message
+   ============================================================================ */
+
+.mobile-not-supported {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.85);
+  color: white;
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: var(--spacing-lg);
+}
+
+.mobile-not-supported h2 {
+  font-size: 1.5em;
+  margin-bottom: var(--spacing-md);
+}
+
+.mobile-not-supported p {
+  font-size: 1em;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Show mobile warning on small screens */
+@media (max-width: 768px) {
+  .mobile-not-supported {
+    display: flex;
+  }
+
+  .three-column-layout {
+    display: none;
+  }
+}
+
+/* ============================================================================
+   Dark Mode Support (Optional - for future)
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-text-primary: rgba(255, 255, 255, 0.85);
+    --color-text-secondary: rgba(255, 255, 255, 0.65);
+    --color-text-disabled: rgba(255, 255, 255, 0.25);
+    --color-border: #434343;
+    --color-bg-container: #141414;
+    --color-bg-layout: #000000;
+  }
+
+  .markdown-content code {
+    background-color: #1f1f1f;
+  }
+
+  .markdown-content pre {
+    background-color: #1f1f1f;
+  }
+
+  .markdown-content th {
+    background-color: #1f1f1f;
+  }
+
+  .diff-column-old {
+    background-color: #2a1215; /* Dark red background */
+  }
+
+  .diff-column-new {
+    background-color: #162312; /* Dark green background */
+  }
+
+  .diff-insert {
+    background-color: #274916; /* Dark green highlight */
+  }
+
+  .diff-delete {
+    background-color: #58181c; /* Dark red highlight */
+  }
+}
