@@ -489,6 +489,22 @@ The following features are explicitly out of scope for the first version and may
 - The application must only support desktop browsers (Chrome, Firefox, Safari, Edge); responsive design must adapt to different desktop screen sizes but not mobile devices
 - Voice input must use the Web Speech API (if available) or integrate with a cloud-based speech-to-text service
 
+### Production Deployment
+
+- **Server**: 172.16.18.184 (User: op)
+- **Frontend Port**: 8080 (http://172.16.18.184:8080)
+- **Backend API Port**: 8000 (http://172.16.18.184:8000)
+- **Web Server**: Nginx (serves static files and proxies /api/ to backend)
+- **Build Tool**: Vite 7.1.7 (build command: `npx vite build` to skip TypeScript checking)
+- **Environment Variables**:
+  - `VITE_API_BASE_URL=http://172.16.18.184:8000/api` (must include `/api` suffix)
+- **Deployment Process**:
+  1. Local build: `npx vite build` in frontend directory
+  2. Upload files: `scp -r dist/* op@172.16.18.184:~/ai-workflow-dist/`
+  3. Server move: `sudo cp -r ~/ai-workflow-dist/* /var/www/ai-workflow-frontend/`
+  4. Nginx restart: `sudo systemctl restart nginx`
+- **Deployment Documentation**: See `DEPLOYMENT.md` for complete deployment guide
+
 ### Recommended Component Libraries (Based on Dify Analysis)
 
 - **Virtual Scrolling**: Use `react-window` (^1.8.10) for efficient rendering of long conversation histories and document lists

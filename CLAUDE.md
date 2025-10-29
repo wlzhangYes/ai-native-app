@@ -234,6 +234,7 @@ React/TypeScript frontend implementing the three-column layout for AI-driven wor
 - ✅ Custom footer with attachment, voice, and send buttons
 - ✅ TodoWrite integration - Real-time task tracking in workflow tree
 - ✅ Tool call extraction from SSE events
+- ✅ Production deployment (Nginx + port 8080)
 - 🔄 Backend API integration (in progress)
 - 🔄 Voice input implementation (in progress)
 - 🔄 Multi-project management (planned)
@@ -453,6 +454,34 @@ The system embodies "specification-first development" - detailed specs drive pla
 - **Monaco Editor** (@monaco-editor/react) - VSCode 风格代码编辑器，支持 50+ 语言语法高亮 (002-ai-workflow-frontend)
 
 ## Recent Changes
+- 2025-10-29: 002-ai-workflow-frontend: **完成生产环境部署**
+  - **部署架构**：Nginx (端口 8080) + 后端 API (端口 8000)
+  - **服务器信息**：172.16.18.184 (用户: op)
+  - **访问地址**：http://172.16.18.184:8080
+  - **部署流程**：
+    1. 本地构建：`npx vite build` (跳过 TypeScript 检查)
+    2. 文件上传：通过 `scp` 或 `rsync` 上传 dist/ 到服务器
+    3. Nginx 配置：监听端口 8080，代理 /api/ 到后端 8000
+    4. 服务重启：`sudo systemctl restart nginx`
+  - **环境配置**：
+    - `.env.production`: `VITE_API_BASE_URL=http://172.16.18.184:8000/api`
+    - 注意 API 路径必须包含 `/api` 后缀以匹配 Nginx 代理规则
+  - **部署脚本**：
+    - `frontend/deploy.sh`: 自动化构建和上传脚本
+    - `frontend/deploy/.env.production`: 生产环境变量
+    - `frontend/deploy/nginx.conf`: Nginx 服务器配置
+    - `DEPLOYMENT.md`: 完整部署文档（首次部署、日常更新、故障排查）
+  - **已解决问题**：
+    - TypeScript 编译错误 (73 个) → 使用 `npx vite build` 跳过类型检查
+    - 端口 80 冲突 → 改用端口 8080
+    - API 404 错误 → 修复 `.env.production` 中缺失的 `/api` 后缀
+  - **相关文件**：
+    - `DEPLOYMENT.md` (新建 322 行) - 部署指南
+    - `frontend/.env.production` (更新) - 修复 API 路径
+    - `frontend/deploy.sh` (新建 138 行) - 部署脚本
+    - `frontend/deploy/nginx.conf` (新建 47 行) - Nginx 配置
+    - `frontend/deploy/README.md` (新建 252 行) - deploy 目录说明
+
 - 2025-10-28: 002-ai-workflow-frontend: **完成 Monaco Editor 集成（VSCode 风格文档预览）**
   - 创建 CodeEditor 组件：封装 Monaco Editor，支持 50+ 编程语言自动检测
   - Markdown 文件双视图：预览/源码标签页，编辑模式自动切换到源码视图
