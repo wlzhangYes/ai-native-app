@@ -9,7 +9,6 @@ import { ThreeColumnLayout } from './components/layout/ThreeColumnLayout';
 import { LeftPanel } from './components/layout/LeftPanel';
 import { MiddlePanel } from './components/layout/MiddlePanel';
 import { RightPanel } from './components/layout/RightPanel';
-import { MobileNotSupported } from './components/shared/MobileNotSupported';
 import { useProjectStore } from './stores/useProjectStore';
 import { useDialogStore } from './stores/useDialogStore';
 import { useWorkflowStore } from './stores/useWorkflowStore';
@@ -41,10 +40,7 @@ function App() {
       <div style={{ height: '100vh', overflow: 'hidden' }}>
         <AuthProvider>
           <ThemeProvider>
-            {/* Mobile Not Supported Message (shown via CSS on small screens) */}
-            <MobileNotSupported />
-
-            {/* Three-Column Layout (hidden via CSS on small screens) */}
+            {/* Three-Column Layout */}
             <ThreeColumnLayout
               left={<LeftPanel />}
               middle={<MiddlePanel />}

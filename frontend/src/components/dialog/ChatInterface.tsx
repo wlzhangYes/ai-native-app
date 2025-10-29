@@ -523,7 +523,7 @@ export function ChatInterface() {
               components={{
               code({ node, inline, className, children, ...props }) {
                 return !inline ? (
-                  <pre className="bg-gray-100 p-3 rounded overflow-auto text-[13px] my-2">
+                  <pre className="bg-gray-100 p-3 rounded overflow-x-auto text-[13px] my-2 max-w-[90%] box-border whitespace-pre">
                     <code className={className} {...props}>
                       {children}
                     </code>
@@ -534,7 +534,17 @@ export function ChatInterface() {
                   </code>
                 );
               },
-              p: ({ children }) => <p className="my-2 leading-relaxed">{children}</p>,
+              p: ({ children, node }) => {
+                // 检查子元素中是否包含 code 标签（代码块），如果是则用 div 避免 <p> 嵌套 <pre> 错误
+                const hasCodeBlock = node?.children?.some(
+                  (child) => (child as { tagName?: string }).tagName === 'code'
+                );
+                return hasCodeBlock ? (
+                  <div className="my-2 leading-relaxed">{children}</div>
+                ) : (
+                  <p className="my-2 leading-relaxed">{children}</p>
+                );
+              },
               h1: ({ children }) => (
                 <h1 className="text-xl font-semibold mt-4 mb-2">{children}</h1>
               ),
