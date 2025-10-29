@@ -24,10 +24,11 @@ interface ToolCallCardProps {
     status: 'building' | 'executing' | 'success' | 'failed';
     isError?: boolean;
   };
+  defaultExpanded?: boolean; // 是否默认展开
 }
 
-export function ToolCallCard({ toolCall }: ToolCallCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+export function ToolCallCard({ toolCall, defaultExpanded = false }: ToolCallCardProps) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const getStatusIcon = () => {
     switch (toolCall.status) {

@@ -1,19 +1,23 @@
 // ExecutionLog Component - Displays execution logs for workflow stages
 // Based on spec.md FR-026: Execution log display
-// Updated: Support embedded UI components in execution logs
+// Updated: Support embedded UI components in execution logs + Tool Calls Display
 
-import { Timeline, Empty, Button, Tag } from 'antd';
+import { useEffect, useRef } from 'react';
+import { Timeline, Empty, Button, Tag, Progress } from 'antd';
 import {
   InfoCircleOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
   CloseCircleOutlined,
   FileTextOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import { formatDate } from '@/utils/format';
 import { useWorkflowStore } from '@/stores/useWorkflowStore';
 import { useDocumentStore } from '@/stores/useDocumentStore';
+import { useDialogStore } from '@/stores/useDialogStore';
 import { getTaskUIComponent } from '../task-ui/TaskUIRegistry';
+import { ToolCallCard } from '../dialog/ToolCallCard';
 import type { ExecutionLog, ExecutionLogType } from '@/types/models';
 
 export interface ExecutionLogProps {
@@ -24,6 +28,28 @@ export function ExecutionLog({ stageId }: ExecutionLogProps) {
   const workflow = useWorkflowStore((state) => state.workflow);
   const activeStageId = useWorkflowStore((state) => state.activeStageId);
   const setSelectedDocument = useWorkflowStore((state) => state.setSelectedDocument);
+
+  // Get tool calls from DialogStore
+  const toolCalls = useDialogStore((state) => state.toolCalls);
+  const isStreaming = useDialogStore((state) => state.isStreaming);
+
+  // Auto-scroll to latest tool
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastToolCountRef = useRef(0);
+
+  useEffect(() => {
+    // Auto-scroll when new tool is added
+    if (toolCalls.length > lastToolCountRef.current && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+    lastToolCountRef.current = toolCalls.length;
+  }, [toolCalls.length]);
+
+  // Calculate progress
+  const completedCount = toolCalls.filter(tc => tc.status === 'completed' || tc.status === 'failed').length;
+  const runningCount = toolCalls.filter(tc => tc.status === 'running').length;
+  const totalCount = toolCalls.length;
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   // Get logs for the specified stage or active stage
   const targetStageId = stageId || activeStageId;
@@ -228,26 +254,106 @@ export function ExecutionLog({ stageId }: ExecutionLogProps) {
     );
   };
 
+  // 如果没有选择 stage，显示工具调用记录
   if (!stage) {
-    return (
-      <div style={{ padding: '24px' }}>
-        <Empty description="请从工作流树中选择一个阶段查看执行记录" />
-      </div>
-    );
-  }
+    // 如果没有工具调用，显示占位图
+    if (toolCalls.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <Empty description="暂无执行记录" />
+        </div>
+      );
+    }
 
-  if (logs.length === 0) {
+    // 显示工具执行记录
     return (
-      <div style={{ padding: '24px' }}>
-        <Empty description={`${stage.name} 暂无执行记录`} />
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        {/* Progress Header */}
+        {isStreaming && totalCount > 0 && (
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0', backgroundColor: '#fafafa' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontSize: '14px', color: 'rgba(0, 0, 0, 0.65)' }}>
+                {runningCount > 0 ? (
+                  <>
+                    <LoadingOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+                    正在执行工具... ({completedCount}/{totalCount})
+                  </>
+                ) : (
+                  <>执行完成 ({completedCount}/{totalCount})</>
+                )}
+              </span>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#1890ff' }}>
+                {progressPercent}%
+              </span>
+            </div>
+            <Progress
+              percent={progressPercent}
+              status={runningCount > 0 ? 'active' : 'success'}
+              showInfo={false}
+              strokeColor={{ from: '#1890ff', to: '#52c41a' }}
+            />
+          </div>
+        )}
+
+        {/* Tool Cards List with Auto-scroll */}
+        <div
+          ref={containerRef}
+          style={{
+            flex: 1,
+            padding: '24px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+        >
+          {toolCalls.map((toolCall) => {
+            const isRunning = toolCall.status === 'running';
+            return (
+              <div
+                key={toolCall.id}
+                style={{
+                  animation: isRunning ? 'pulse 2s ease-in-out infinite' : undefined,
+                }}
+              >
+                <ToolCallCard
+                  defaultExpanded={isRunning || toolCall.status === 'completed' || toolCall.status === 'failed'}
+                  toolCall={{
+                    id: toolCall.id,
+                    name: toolCall.name,
+                    input: toolCall.input,
+                    result: toolCall.result,
+                    status: toolCall.status === 'running'
+                      ? 'executing'
+                      : toolCall.status === 'completed'
+                        ? 'success'
+                        : 'failed',
+                    isError: toolCall.status === 'failed',
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <style>{`
+          @keyframes pulse {
+            0%, 100% {
+              box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.4);
+            }
+            50% {
+              box-shadow: 0 0 0 8px rgba(24, 144, 255, 0);
+            }
+          }
+        `}</style>
       </div>
     );
   }
 
   // Sort logs in reverse chronological order (newest first)
-  const sortedLogs = [...logs].sort(
+  const sortedLogs = logs.length > 0 ? [...logs].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
+  ) : [];
 
   return (
     <div style={{ padding: '24px' }}>
@@ -259,13 +365,43 @@ export function ExecutionLog({ stageId }: ExecutionLogProps) {
       </div>
 
       {/* Timeline */}
-      <Timeline
-        items={sortedLogs.map((log) => ({
-          dot: getLogIcon(log.level),
-          color: getLogColor(log.level),
-          children: renderLogContent(log),
-        }))}
-      />
+      {sortedLogs.length > 0 ? (
+        <Timeline
+          items={sortedLogs.map((log) => ({
+            dot: getLogIcon(log.level),
+            color: getLogColor(log.level),
+            children: renderLogContent(log),
+          }))}
+        />
+      ) : (
+        <Empty description={`${stage.name} 暂无执行记录`} />
+      )}
+
+      {/* Tool Calls Section */}
+      {toolCalls.length > 0 && (
+        <div style={{ marginTop: '32px', borderTop: '1px solid #f0f0f0', paddingTop: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {toolCalls.map((toolCall) => (
+              <ToolCallCard
+                key={toolCall.id}
+                defaultExpanded={true}
+                toolCall={{
+                  id: toolCall.id,
+                  name: toolCall.name,
+                  input: toolCall.input,
+                  result: toolCall.result,
+                  status: toolCall.status === 'running'
+                    ? 'executing'
+                    : toolCall.status === 'completed'
+                      ? 'success'
+                      : 'failed',
+                  isError: toolCall.status === 'failed',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

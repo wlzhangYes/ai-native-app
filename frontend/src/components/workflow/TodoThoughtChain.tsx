@@ -1,41 +1,45 @@
 // TodoThoughtChain Component - Display TodoWrite todos as ThoughtChain
 // 平铺任务列表使用 ThoughtChain 展示，更符合 AI 执行流程的视觉效果
 
-import { CheckCircleOutlined, LoadingOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { CheckOutlined, LoadingOutlined, CloseOutlined } from '@ant-design/icons';
 import type { ThoughtChainItem } from '@ant-design/x';
 import { ThoughtChain } from '@ant-design/x';
 import type { Todo } from '@/types/models';
 
 /**
- * 获取任务状态对应的图标
- * 不使用 Tailwind className，保持与 Ant Design X 的样式兼容性
- */
-function getStatusIcon(status: Todo['status']) {
-  switch (status) {
-    case 'completed':
-      return <CheckCircleOutlined />;
-    case 'in_progress':
-      return <LoadingOutlined />;
-    case 'pending':
-      return <LoadingOutlined />; // pending 也显示加载图标
-    default:
-      return <CloseCircleOutlined />;
-  }
-}
-
-/**
  * 将 TodoWrite 状态映射到 ThoughtChain 状态
+ * ThoughtChain 内置三种状态：
+ * - 'pending': 执行中（蓝色加载动画）
+ * - 'success': 执行完成（绿色背景圆+白色对勾）
+ * - 'error': 执行失败（红色背景圆+白色叉）
+ * - undefined: 未开始（灰色圆圈）
  */
 function mapTodoStatus(status: Todo['status']): ThoughtChainItem['status'] {
   switch (status) {
     case 'completed':
-      return 'success';
+      return 'success'; // 绿色背景圆+白色对勾
     case 'in_progress':
-      return 'pending'; // ThoughtChain 的 pending 表示进行中（带动画）
+      return 'pending'; // 蓝色加载动画
     case 'pending':
-      return 'pending';
+      return undefined; // 未开始，灰色圆圈
     default:
-      return 'error';
+      return 'error'; // 红色背景圆+白色叉
+  }
+}
+
+/**
+ * 获取任务状态对应的图标
+ */
+function getStatusIcon(status: Todo['status']) {
+  switch (status) {
+    case 'completed':
+      return <CheckOutlined />; // 对勾
+    case 'in_progress':
+      return <LoadingOutlined />; // 加载动画
+    case 'pending':
+      return undefined; // 默认圆圈
+    default:
+      return <CloseOutlined />; // 叉
   }
 }
 
@@ -63,13 +67,6 @@ export function TodoThoughtChain({ todos, onTaskClick }: TodoThoughtChainProps) 
   const items: ThoughtChainItem[] = todos.map((todo, index) => {
     const status = mapTodoStatus(todo.status);
     const icon = getStatusIcon(todo.status);
-
-    console.log(`[TodoThoughtChain] Item ${index}:`, {
-      title: todo.content,
-      status,
-      icon: !!icon,
-      todoStatus: todo.status,
-    });
 
     return {
       title: todo.content,

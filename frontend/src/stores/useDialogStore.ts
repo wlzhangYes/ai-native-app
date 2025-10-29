@@ -143,9 +143,14 @@ export const useDialogStore = create<DialogStore>()(
           set((state) => {
             const messageIndex = state.messages.findIndex((m) => m.id === messageId);
             if (messageIndex !== -1) {
+              const currentMessage = state.messages[messageIndex];
               state.messages[messageIndex] = {
-                ...state.messages[messageIndex],
+                ...currentMessage,
                 ...updates,
+                // 深度合并 metadata
+                metadata: updates.metadata
+                  ? { ...currentMessage.metadata, ...updates.metadata }
+                  : currentMessage.metadata,
               };
             }
           }),
@@ -189,7 +194,8 @@ export const useDialogStore = create<DialogStore>()(
                       id: tc.id,
                       name: tc.name,
                       input: tc.input,
-                      status: 'completed',
+                      result: tc.result, // 提取 result 字段
+                      status: tc.is_error ? 'failed' : 'completed',
                     });
                   });
                 }

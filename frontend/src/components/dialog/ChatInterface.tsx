@@ -3,7 +3,7 @@
 // Using Bubble.List (官方推荐) for message display
 // 适配 Claude Agent Service API
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Bubble, Sender, Actions, Attachments, Welcome, type GetProp } from '@ant-design/x';
 import { message as antdMessage, Flex, Button } from 'antd';
 import { createStyles } from 'antd-style';
@@ -19,13 +19,10 @@ import {
 import type { Message, AttachmentInfo } from '@/types/models';
 import { MessageSender, MessageType } from '@/types/models';
 import type { BubbleDataType } from '@ant-design/x/es/bubble/BubbleList';
-import type { UploadFile } from 'antd';
-import { getChatStreamUrl } from '@/services/api/chat';
 import type { ChatStreamEvent } from '@/services/api/chat';
 import { SSEConnection } from '@/services/api/sse';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ToolCallCard } from './ToolCallCard';
 import { SessionsDrawer } from '../session/SessionsDrawer';
 
 // Custom attachment type for internal use
@@ -81,7 +78,6 @@ export function ChatInterface() {
   // Load history messages when session changes
   useEffect(() => {
     if (currentProjectId) {
-      console.log('[ChatInterface] Session changed, loading messages for:', currentProjectId);
       loadMessages(currentProjectId);
       welcomeInitializedRef.current = true; // Mark as initialized after loading
     }
@@ -101,13 +97,10 @@ export function ChatInterface() {
 
   // Handle SSE events from Claude Agent Service
   const handleSSEMessage = useCallback((event: ChatStreamEvent) => {
-    console.log('[ChatInterface] Received SSE event:', event.type, event);
-
     const msgId = streamingMessageIdRef.current;
 
     switch (event.type) {
       case 'connected':
-        console.log('[ChatInterface] Connected to session:', event.session_id);
         break;
 
       case 'text_delta':
@@ -121,15 +114,17 @@ export function ChatInterface() {
         // 内容块开始（文本或工具调用）
         if (event.type === 'content_block_start' && 'tool' in event && event.tool) {
           const toolInfo = event.tool as { id: string; name: string };
-          console.log('[ChatInterface] Tool use started:', toolInfo.name);
-          setToolCalls((prev) => [
-            ...prev,
-            {
-              id: toolInfo.id,
-              name: toolInfo.name,
-              status: 'building',
-            },
-          ]);
+          const newToolCall = {
+            id: toolInfo.id,
+            name: toolInfo.name,
+            status: 'building' as const,
+          };
+          console.log('➕ [ChatInterface] Adding tool call:', newToolCall);
+          setToolCalls((prev) => {
+            const updated = [...prev, newToolCall];
+            console.log('📋 [ChatInterface] Current toolCalls state:', updated);
+            return updated;
+          });
         }
         break;
 
@@ -147,19 +142,38 @@ export function ChatInterface() {
         break;
 
       case 'tool_use':
-        // 工具调用完成
+        // 工具调用（后端直接发送完整的 tool_use 事件）
         if (event.type === 'tool_use' && 'tool' in event && event.tool) {
           const toolInfo = event.tool as { id: string; name: string; input: Record<string, unknown> };
-          console.log('[ChatInterface] Tool use:', toolInfo.name, toolInfo.input);
 
-          // Update local toolCalls state for display
-          setToolCalls((prev) =>
-            prev.map((t) =>
-              t.id === toolInfo.id
-                ? { ...t, status: 'executing', input: toolInfo.input, inputPartial: undefined }
-                : t
-            )
-          );
+          console.log('🔧 [ChatInterface] Received tool_use event:', toolInfo);
+
+          // 检查是否已存在（从 content_block_start 添加的）
+          setToolCalls((prev) => {
+            const existingIndex = prev.findIndex(t => t.id === toolInfo.id);
+
+            if (existingIndex >= 0) {
+              // 更新已存在的 tool call
+              const updated = prev.map((t) =>
+                t.id === toolInfo.id
+                  ? { ...t, status: 'executing' as const, input: toolInfo.input, inputPartial: undefined }
+                  : t
+              );
+              console.log('📋 [ChatInterface] Updated existing toolCall:', updated);
+              return updated;
+            } else {
+              // 添加新的 tool call（后端没有发送 content_block_start）
+              const newToolCall = {
+                id: toolInfo.id,
+                name: toolInfo.name,
+                input: toolInfo.input,
+                status: 'executing' as const,
+              };
+              const updated = [...prev, newToolCall];
+              console.log('📋 [ChatInterface] Added new toolCall:', updated);
+              return updated;
+            }
+          });
 
           // Save to DialogStore for workflow integration
           addToolCall({
@@ -174,19 +188,31 @@ export function ChatInterface() {
       case 'tool_result':
         // 工具执行结果
         if ('tool_use_id' in event) {
-          console.log('[ChatInterface] Tool result:', event.tool_use_id, event.is_error);
+          const toolUseId = event.tool_use_id as string;
+          const result = event.content;
+          const isError = event.is_error as boolean;
+
+          console.log('✅ [ChatInterface] Received tool_result:', { toolUseId, result, isError });
+
+          // Update local toolCalls state
           setToolCalls((prev) =>
             prev.map((t) =>
-              t.id === event.tool_use_id
+              t.id === toolUseId
                 ? {
                     ...t,
-                    status: event.is_error ? 'failed' : 'success',
-                    result: event.content,
-                    isError: event.is_error,
+                    status: (isError ? 'failed' : 'success') as const,
+                    result,
+                    isError,
                   }
                 : t
             )
           );
+
+          // Update DialogStore toolCall with result
+          updateToolCall(toolUseId, {
+            result,
+            status: isError ? 'failed' : 'completed',
+          });
         }
         break;
 
@@ -197,7 +223,6 @@ export function ChatInterface() {
             result?: string;
             total_cost_usd?: number;
           };
-          console.log('[ChatInterface] Result:', resultData);
 
           // 将最终结果设置为消息内容
           if (msgId && resultData.result) {
@@ -206,16 +231,11 @@ export function ChatInterface() {
             });
           }
 
-          // 可以显示用量统计
-          if (resultData.total_cost_usd) {
-            console.log('Cost:', resultData.total_cost_usd, 'USD');
-          }
         }
         break;
 
       case 'done':
         // 对话结束
-        console.log('[ChatInterface] Stream completed');
         if (msgId) {
           updateMessage(msgId, {
             metadata: { isStreaming: false },
@@ -234,7 +254,6 @@ export function ChatInterface() {
 
       case 'error':
         // 错误消息
-        console.error('[ChatInterface] Error:', event);
         setStreaming(false);
         if (msgId) {
           updateMessage(msgId, {
@@ -262,14 +281,12 @@ export function ChatInterface() {
         break;
 
       default:
-        console.log('[ChatInterface] Unknown event type:', event.type);
+        break;
     }
-  }, [appendToStreamingMessage, updateMessage, setStreaming, addMessage, currentProjectId]);
+  }, [appendToStreamingMessage, updateMessage, setStreaming, addMessage, addToolCall, currentProjectId]);
 
   // Handle cancel request
   const handleCancel = useCallback(() => {
-    console.log('[ChatInterface] Canceling request...');
-
     // 中止请求
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -296,11 +313,46 @@ export function ChatInterface() {
     antdMessage.info('已取消当前请求');
   }, [updateMessage, setStreaming]);
 
+  // 同步 toolCalls 状态到当前流式消息的 metadata
+  useEffect(() => {
+    const msgId = streamingMessageIdRef.current;
+    console.log('🔍 [ChatInterface] useEffect triggered:', {
+      msgId,
+      toolCallsLength: toolCalls.length,
+      isStreaming,
+      condition: msgId && toolCalls.length > 0 && isStreaming,
+    });
+
+    if (msgId && toolCalls.length > 0 && isStreaming) {
+      console.log('🔧 [ChatInterface] Syncing toolCalls to metadata:', {
+        msgId,
+        toolCallsCount: toolCalls.length,
+        toolCalls: toolCalls.map(t => ({ id: t.id, name: t.name, status: t.status })),
+      });
+
+      const toolCallsData = toolCalls.map(t => ({
+        id: t.id,
+        name: t.name,
+        input: t.input || {},
+        result: t.result,
+        is_error: !!t.isError,
+      }));
+
+      updateMessage(msgId, {
+        metadata: {
+          isStreaming: true,
+          toolCalls: toolCallsData,
+        },
+      });
+
+      console.log('✅ [ChatInterface] Updated metadata with toolCalls');
+    }
+  }, [toolCalls, isStreaming, updateMessage]);
+
   // Cleanup SSE connection on unmount
   useEffect(() => {
     return () => {
       if (sseConnectionRef.current) {
-        console.log('[ChatInterface] Cleaning up SSE connection');
         sseConnectionRef.current.close();
         sseConnectionRef.current = null;
       }
@@ -314,7 +366,6 @@ export function ChatInterface() {
   // Handle file upload (参考 Independent 示例的实现)
   // 使用 Attachments 组件的 onChange 处理
   const handleAttachmentsChange = useCallback((info: { fileList: GetProp<typeof Attachments, 'items'> }) => {
-    console.log('[ChatInterface] Attachments changed:', info.fileList);
     setAttachments(info.fileList);
   }, []);
 
@@ -329,7 +380,9 @@ export function ChatInterface() {
         return;
       }
 
-      console.log('[ChatInterface] Sending message:', message, 'with attachments:', attachments);
+      // 清空上一轮的工具调用记录和工作流任务
+      clearToolCalls();
+      setToolCalls([]);
 
       // 转换附件格式（从 Attachments.items 到 AttachmentInfo[]）
       const attachmentInfos: AttachmentInfo[] = attachments.map((att) => ({
@@ -354,7 +407,6 @@ export function ChatInterface() {
 
       // Add placeholder AI message for streaming
       const aiMessageId = `ai-${Date.now()}`;
-      console.log('[ChatInterface] Created AI message with ID:', aiMessageId);
       const aiMessage: Message = {
         id: aiMessageId,
         conversationId: currentProjectId,
@@ -379,8 +431,6 @@ export function ChatInterface() {
         permission_mode: 'acceptEdits',
       };
 
-      console.log('[ChatInterface] Connecting to SSE:', url, 'body:', requestBody);
-
       // 创建 AbortController 用于中止请求
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
@@ -392,7 +442,6 @@ export function ChatInterface() {
         body: requestBody,
         onMessage: handleSSEMessage,
         onError: (error) => {
-          console.error('[ChatInterface] SSE error:', error);
           if (streamingMessageIdRef.current) {
             updateMessage(streamingMessageIdRef.current, {
               metadata: { isStreaming: false },
@@ -411,9 +460,7 @@ export function ChatInterface() {
             timestamp: new Date().toISOString(),
           });
         },
-        onOpen: () => {
-          console.log('[ChatInterface] SSE connection opened');
-        },
+        onOpen: () => {},
       });
 
       connection.connect();
@@ -430,13 +477,12 @@ export function ChatInterface() {
       currentProjectId,
       handleSSEMessage,
       updateMessage,
+      clearToolCalls,
     ]
   );
 
   // Handle message actions (copy, regenerate)
   const handleMessageAction = useCallback((actionKey: string, messageId: string) => {
-    console.log('[ChatInterface] Action clicked:', actionKey, 'for message:', messageId);
-
     switch (actionKey) {
       case 'copy': {
         const msg = messages.find(m => m.id === messageId);
@@ -464,11 +510,12 @@ export function ChatInterface() {
       }
 
       default:
-        console.log('Unknown action:', actionKey);
+        break;
     }
   }, [messages, handleSend]);
 
   // Convert messages to Bubble.List format (官方推荐的简洁格式)
+  // 注意：不使用 useMemo，因为 Zustand + Immer 修改 message.metadata 不会改变 messages 引用
   const bubbleItems: BubbleDataType[] = messages.map((msg) => {
     const hasAttachments = msg.metadata?.attachments && msg.metadata.attachments.length > 0;
 
@@ -510,10 +557,22 @@ export function ChatInterface() {
     // 为 AI 消息添加 Markdown 渲染、操作按钮和工具调用显示
     if (msg.sender === MessageSender.AI) {
       const isStreamingThisMsg = msg.metadata?.isStreaming && isStreaming && msg.id === streamingMessageIdRef.current;
+      // 统一从 msg.metadata.toolCalls 获取工具调用信息（包括流式和历史）
       const msgToolCalls = msg.metadata?.toolCalls || [];
+
+      console.log('🎨 [ChatInterface] Rendering AI message:', {
+        msgId: msg.id,
+        isStreamingThisMsg,
+        metadataToolCalls: msg.metadata?.toolCalls,
+        msgToolCallsLength: msgToolCalls.length,
+        willRenderToolCards: msgToolCalls.length > 0,
+      });
 
       return {
         ...baseItem,
+        // 控制 typing/loading：没有内容时显示 loading
+        typing: isStreamingThisMsg && !msg.content,
+        loading: isStreamingThisMsg && !msg.content,
         // 使用 Markdown 渲染 AI 消息内容 + Tool Calls
         messageRender: () => (
           <div>
@@ -521,7 +580,7 @@ export function ChatInterface() {
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
-              code({ node, inline, className, children, ...props }) {
+              code({ inline, className, children, ...props }: any) {
                 return !inline ? (
                   <pre className="bg-gray-100 p-3 rounded overflow-x-auto text-[13px] my-2 max-w-[90%] box-border whitespace-pre">
                     <code className={className} {...props}>
@@ -578,33 +637,7 @@ export function ChatInterface() {
             {msg.content}
           </ReactMarkdown>
 
-            {/* Tool Calls - 显示在消息内容下方 */}
-            {isStreamingThisMsg && toolCalls.length > 0 && (
-              <div className="mt-3">
-                {toolCalls.map((toolCall) => (
-                  <ToolCallCard key={toolCall.id} toolCall={toolCall} />
-                ))}
-              </div>
-            )}
-
-            {/* 历史消息的 Tool Calls */}
-            {!isStreamingThisMsg && msgToolCalls.length > 0 && (
-              <div className="mt-3">
-                {msgToolCalls.map((toolCall) => (
-                  <ToolCallCard
-                    key={toolCall.id}
-                    toolCall={{
-                      id: toolCall.id,
-                      name: toolCall.name,
-                      input: toolCall.input,
-                      result: toolCall.result,
-                      status: toolCall.is_error ? 'failed' : 'success',
-                      isError: toolCall.is_error,
-                    }}
-                  />
-                ))}
-              </div>
-            )}
+            {/* Tool Calls 已移至右侧"执行记录"Tab，此处不再显示 */}
           </div>
         ),
         // Footer 显示操作按钮
@@ -678,7 +711,7 @@ export function ChatInterface() {
       },
     },
   };
-
+  console.log('messages111111', messages);
   return (
     <>
       {/* Sessions Drawer */}

@@ -303,7 +303,8 @@ export interface ToolCall {
   id: string;
   name: string;
   input?: Record<string, any>;
-  status?: 'pending' | 'running' | 'completed' | 'error';
+  result?: any; // 工具执行结果
+  status?: 'pending' | 'running' | 'completed' | 'failed';
 }
 
 export interface Todo {

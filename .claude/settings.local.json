@@ -52,7 +52,8 @@
       "Bash(git remote add:*)",
       "Bash(git branch:*)",
       "Bash(git push:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfix: 修复移动端响应式布局和代码块宽度溢出问题\n\n- 移除 MobileNotSupported 组件\n- 移动端只显示左侧 Chat 列（隐藏中间和右侧列）\n- 修复 Markdown 代码块宽度溢出问题\n- 修复 HTML 嵌套错误（pre 不能是 p 的子元素）\n- 全局限制 ant-bubble 和 ant-bubble-list 的最大宽度\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []

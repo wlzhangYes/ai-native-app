@@ -155,7 +155,7 @@ export function DocumentList() {
   if (!files.length) {
     return (
       <Flex align="center" justify="center" className="h-full">
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无文件" />
+        <Empty description="暂无文件" />
       </Flex>
     );
   }

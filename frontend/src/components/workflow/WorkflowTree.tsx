@@ -3,7 +3,7 @@
 // 支持混合显示：平铺任务用 ThoughtChain，多阶段工作流用 Tree
 
 import { useEffect, useMemo, useRef } from 'react';
-import { Tree, Flex } from 'antd';
+import { Tree, Flex, Empty } from 'antd';
 import { DownOutlined } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
 import { useWorkflowStore } from '@/stores/useWorkflowStore';
@@ -241,8 +241,8 @@ export function WorkflowTree() {
 
   if (!workflow) {
     return (
-      <Flex align="center" justify="center" className="h-full text-gray-400">
-        暂无工作流数据
+      <Flex align="center" justify="center" className="h-full">
+        <Empty description="暂无工作流数据" />
       </Flex>
     );
   }

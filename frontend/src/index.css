@@ -298,12 +298,7 @@ body {
 
 /* Force bubble list to prevent horizontal scroll */
 .ant-bubble-list {
-  max-width: 100% !important;
   overflow-x: hidden !important;
-}
-
-.ant-bubble {
-  max-width: 100% !important;
 }
 
 /* ============================================================================

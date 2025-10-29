@@ -3,7 +3,7 @@
 // Updated: Task UI components are now embedded in ExecutionLog, not shown separately
 
 import { useEffect, useState } from 'react';
-import { Tabs, Flex } from 'antd';
+import { Tabs, Flex, Empty } from 'antd';
 import { ExecutionLog } from '../preview/ExecutionLog';
 import { DocumentPreview } from '../preview/DocumentPreview';
 import { useWorkflowStore } from '@/stores/useWorkflowStore';
@@ -30,7 +30,7 @@ export function RightPanel() {
   const items = [
     {
       key: 'logs',
-      label: '运行记录',
+      label: '执行记录',
       children: (
         <div className="h-full overflow-auto">
           <ExecutionLog stageId={activeStageId || undefined} />
@@ -43,8 +43,8 @@ export function RightPanel() {
       children: selectedDocumentId ? (
         <DocumentPreview documentId={selectedDocumentId} />
       ) : (
-        <Flex align="center" justify="center" className="h-full text-gray-400">
-          请从工作流树中选择一个文档查看
+        <Flex align="center" justify="center" className="h-full">
+          <Empty description="请从工作流树中选择一个文档查看" />
         </Flex>
       ),
     },

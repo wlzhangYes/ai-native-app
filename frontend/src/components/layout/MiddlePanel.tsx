@@ -2,7 +2,7 @@
 // Based on spec.md FR-014 to FR-024: Workflow tree with 5 stages
 
 import { useState } from 'react';
-import { Tabs, Flex, Space } from 'antd';
+import { Tabs, Flex, Space, Empty } from 'antd';
 import { UnorderedListOutlined, DatabaseOutlined, FileOutlined } from '@ant-design/icons';
 import { WorkflowTree } from '../workflow/WorkflowTree';
 import { DocumentList } from '../document/DocumentList';
@@ -34,8 +34,8 @@ export function MiddlePanel() {
         </Space>
       ),
       children: (
-        <Flex align="center" justify="center" className="h-full text-gray-400 bg-white">
-          数据视图（待实现）
+        <Flex align="center" justify="center" className="h-full bg-white">
+          <Empty description="数据视图（待实现）" />
         </Flex>
       ),
     },
