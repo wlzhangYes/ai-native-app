@@ -10,3 +10,6 @@ export * from './registry';
 
 // Event Bus
 export * from './event-bus';
+
+// Renderers
+export * from './renderers';
