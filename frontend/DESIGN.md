@@ -2,7 +2,7 @@
 
 **项目名称**: AI-Driven Workflow Execution Frontend
 **版本**: v1.0.0
-**最后更新**: 2025-10-27
+**最后更新**: 2025-10-30
 **文档类型**: 架构设计与技术规范
 
 ---
@@ -88,14 +88,43 @@
 - Axios 支持拦截器、请求取消、超时控制
 - EventSource 是原生 SSE 客户端，无需第三方库
 
-### 2.6 其他工具库
+### 2.6 代码编辑器
 
 | 技术 | 版本 | 用途 |
 |------|------|------|
+| Monaco Editor | @monaco-editor/react | VSCode 风格代码编辑器，支持 50+ 语言语法高亮 |
 | React Markdown | 9.x | Markdown 渲染 |
 | remark-gfm | 4.x | GitHub Flavored Markdown 支持（表格、任务列表） |
 | React Diff Viewer | 3.x | 文档版本对比视图 |
-| MSW | 2.x | API Mock（开发环境） |
+
+**选型理由**：
+- Monaco Editor 是 VSCode 同款编辑器，提供专业级代码编辑体验
+- 支持 JavaScript, TypeScript, Python, Java, C/C++, Go, Rust 等 50+ 语言
+- 内置语法高亮、智能缩进、自动补全等功能
+- 暗色主题（vs-dark）统一代码编辑体验
+
+### 2.7 测试框架
+
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| Vitest | 1.x | 单元测试运行器 |
+| React Testing Library | 14.x | React 组件测试 |
+| MSW | 2.x | API Mock（开发和测试环境） |
+
+**测试策略**：
+- **单元测试**: Hooks 层 100% 覆盖率
+- **集成测试**: SSE 流式通信、工作流同步测试
+- **组件测试**: 关键 UI 组件交互测试
+- **Mock 服务**: MSW 提供稳定的 API 模拟
+
+### 2.8 开发工具
+
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| TypeScript | 5.x | 类型安全开发 |
+| ESLint | 8.x | 代码质量检查 |
+| Prettier | 3.x | 代码格式化 |
+| clsx | 2.x | 条件样式类名管理 |
 
 ---
 
@@ -127,9 +156,26 @@ frontend/
 │   │   ├── useDialogStore.ts           # 对话状态
 │   │   ├── useWorkflowStore.ts         # 工作流状态
 │   │   └── useDocumentStore.ts         # 文档状态
-│   ├── hooks/                   # 自定义 Hooks
-│   │   ├── useSSE.ts                   # SSE 连接管理
-│   │   └── useWindowSize.ts            # 窗口尺寸响应
+│   ├── hooks/                   # 四层 Hooks 架构
+│   │   ├── utility/             # 工具函数层
+│   │   │   ├── useDebounce.ts          # 防抖钩子
+│   │   │   ├── useToggle.ts            # 开关状态管理
+│   │   │   ├── useLocalStorage.ts      # 本地存储管理
+│   │   │   └── useWindowSize.ts        # 窗口尺寸响应
+│   │   ├── infrastructure/      # 基础设施层
+│   │   │   ├── useApiClient.ts         # HTTP 客户端
+│   │   │   ├── useSSE.ts               # SSE 连接管理
+│   │   │   ├── useIndexedDB.ts         # IndexedDB 操作
+│   │   │   └── usePersistence.ts       # 数据持久化
+│   │   ├── business/            # 业务逻辑层
+│   │   │   ├── useMessages.ts          # 消息业务逻辑
+│   │   │   ├── useTodos.ts             # 任务业务逻辑
+│   │   │   ├── useWorkflowSync.ts      # 工作流同步逻辑
+│   │   │   └── useDocuments.ts         # 文档业务逻辑
+│   │   └── composite/           # 组合逻辑层
+│   │       ├── useChat.ts              # AI 对话组合功能
+│   │       ├── useWorkflow.ts          # 工作流组合功能
+│   │       └── useAIWorkflow.ts        # AI 工作流集成
 │   ├── services/                # 服务层
 │   │   ├── api/
 │   │   │   ├── http.ts                 # Axios 实例配置
@@ -227,6 +273,75 @@ frontend/
 │   - IndexedDB           │    │   - SSE Stream (EventSource)   │
 └─────────────────────────┘    └────────────────────────────────┘
 ```
+
+### 3.4 四层 Hooks 架构
+
+本项目采用分层 Hooks 架构设计，将复杂的业务逻辑按职责分层，提升代码可维护性和可测试性：
+
+```
+┌─────────────────────────────────────┐
+│  Composite Hooks (组合逻辑层)        │  ← useChat, useWorkflow
+│  - 业务场景组合，跨域协调             │
+└─────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────┐
+│  Business Hooks (业务逻辑层)         │  ← useMessages, useTodos
+│  - 特定业务逻辑封装                  │
+└─────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────┐
+│  Infrastructure Hooks (基础设施层)   │  ← useApiClient, useSSE
+│  - HTTP/SSE/存储等基础能力            │
+└─────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────┐
+│  Utility Hooks (工具函数层)          │  ← useDebounce, useToggle
+│  - 通用工具函数，可复用               │
+└─────────────────────────────────────┘
+```
+
+#### 3.4.1 工具函数层 (Utility Layer)
+
+提供可复用的通用工具钩子：
+
+- **useDebounce**: 防抖处理，优化搜索和输入体验
+- **useToggle**: 布尔状态管理，简化开关逻辑
+- **useLocalStorage**: 本地存储封装，提供类型安全的读写接口
+- **useWindowSize**: 窗口尺寸响应，支持响应式设计
+
+#### 3.4.2 基础设施层 (Infrastructure Layer)
+
+封装底层技术细节，提供稳定的基础能力：
+
+- **useApiClient**: Axios 实例管理，统一错误处理和请求拦截
+- **useSSE**: EventSource 连接管理，处理重连和错误恢复
+- **useIndexedDB**: IndexedDB 操作封装，提供 Promise 化接口
+- **usePersistence**: 数据持久化策略，支持多种存储方式
+
+#### 3.4.3 业务逻辑层 (Business Layer)
+
+实现特定业务领域的逻辑：
+
+- **useMessages**: 消息管理，处理用户/AI/系统消息的 CRUD 操作
+- **useTodos**: 任务管理，从 Tool Calls 中提取和管理 TodoWrite 数据
+- **useWorkflowSync**: 工作流同步，处理 Todos 到 Workflow Tree 的映射
+- **useDocuments**: 文档管理，处理文档的创建、编辑、版本控制
+
+#### 3.4.4 组合逻辑层 (Composite Layer)
+
+协调多个业务逻辑，实现复杂的用户场景：
+
+- **useChat**: AI 对话功能集成，整合消息、SSE 流、Tool Calls 处理
+- **useWorkflow**: 工作流管理，协调阶段状态、任务执行、UI 交互
+- **useAIWorkflow**: AI 工作流集成，连接对话和工作流，实现端到端体验
+
+#### 架构优势
+
+1. **关注点分离**: 每层专注于特定职责，降低复杂度
+2. **可测试性**: 单一职责便于编写单元测试
+3. **可复用性**: 底层 hooks 可在多个场景中复用
+4. **可维护性**: 分层结构便于定位问题和功能扩展
+5. **类型安全**: 全链路 TypeScript 类型支持
 
 ---
 
@@ -768,14 +883,14 @@ User           Frontend        WorkflowStore    Backend
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     Global State (Zustand)                  │
-├──────────────────┬──────────────────┬───────────────────────┤
-│ useDialogStore   │ useWorkflowStore │ useDocumentStore      │
-├──────────────────┼──────────────────┼───────────────────────┤
-│ - messages       │ - workflow       │ - documents           │
-│ - isStreaming    │ - activeStageId  │ - editingDocId        │
-│ - taskStatus     │ - selectedDocId  │ - isDiffMode          │
-│                  │ - expandedKeys   │ - previousContent     │
-└──────────────────┴──────────────────┴───────────────────────┘
+├──────────────────┬──────────────────┬───────────────────────┬─────────────────────┤
+│ useDialogStore   │ useWorkflowStore │ useDocumentStore      │ useUIActionStore    │
+├──────────────────┼──────────────────┼───────────────────────┼─────────────────────┤
+│ - messages       │ - workflow       │ - documents           │ - actionHistory     │
+│ - isStreaming    │ - activeStageId  │ - editingDocId        │ - userPreferences   │
+│ - toolCalls      │ - selectedDocId  │ - isDiffMode          │ - uiState          │
+│ - currentSession │ - expandedKeys   │ - previousContent     │ - sessionId        │
+└──────────────────┴──────────────────┴───────────────────────┴─────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
 │              Persistence Middleware                         │
@@ -787,29 +902,40 @@ User           Frontend        WorkflowStore    Backend
 ### 5.2 useDialogStore
 
 **状态**：
-- `messages`: 对话消息列表
+- `messages`: 对话消息列表（按 sessionId 隔离）
 - `isStreaming`: 是否正在流式传输
-- `currentTaskStatus`: 当前任务状态（名称、状态、进度）
+- `toolCalls`: Tool Calls 调用记录（TodoWrite 等）
+- `currentSession`: 当前活跃的会话 ID
 
 **操作**：
-- `addMessage`: 添加消息
+- `addMessage`: 添加消息到当前会话
 - `updateMessage`: 更新消息内容（用于流式更新）
+- `appendToStreamingMessage`: 追加内容到流式消息
 - `setStreaming`: 设置流式状态
-- `setTaskStatus`: 设置任务状态
-- `clearMessages`: 清空消息
+- `addToolCall`: 添加工具调用记录
+- `updateToolCall`: 更新工具调用状态
+- `clearMessages`: 清空当前会话消息
+- `loadMessages`: 加载指定会话的历史消息
+- `setCurrentSession`: 切换当前活跃会话
+
+**会话隔离**：
+- 每个项目拥有独立的 sessionId
+- messages 和 toolCalls 按 sessionId 分别存储
+- 支持多项目会话快速切换
 
 **持久化**：
-- 持久化：`messages`
-- 不持久化：`isStreaming`, `currentTaskStatus`
+- 持久化：`messages`（按 sessionId）, `toolCalls`
+- 不持久化：`isStreaming`, 流式状态
 
 ### 5.3 useWorkflowStore
 
 **状态**：
-- `workflow`: 工作流对象（包含所有阶段）
+- `workflow`: 工作流对象（包含所有阶段）（按 sessionId 隔离）
 - `activeStageId`: 当前激活的阶段 ID
 - `selectedDocumentId`: 当前选中的文档 ID
 - `expandedKeys`: 展开的树节点 key 列表
 - `selectedKeys`: 选中的树节点 key 列表
+- `currentSession`: 当前活跃的会话 ID
 
 **操作**：
 - `setWorkflow`: 设置工作流
@@ -820,9 +946,22 @@ User           Frontend        WorkflowStore    Backend
 - `setActiveStage`: 设置激活阶段
 - `setSelectedDocument`: 设置选中文档
 - `toggleExpanded`: 切换节点展开状态
+- `syncTodosToTasks`: 同步 TodoWrite 数据到工作流树
+- `setCurrentSession`: 切换当前活跃会话
+- `clearWorkflow`: 清空当前会话工作流
+
+**TodoWrite 集成**：
+- 自动从 AI Tool Calls 中提取 TodoWrite 数据
+- 平铺任务结构：所有 todo 项作为独立任务展示
+- 实时状态同步：pending/in_progress/completed 状态实时更新
+- 自动创建工作流：首次 todo 出现时自动创建默认"任务列表"阶段
+
+**会话隔离**：
+- 每个项目的工作流数据完全独立
+- 支持多项目工作流状态并存
 
 **持久化**：
-- 全部持久化到 LocalStorage
+- 全部持久化到 LocalStorage（按 sessionId）
 
 ### 5.4 useDocumentStore
 
@@ -845,6 +984,28 @@ User           Frontend        WorkflowStore    Backend
 **持久化**：
 - 持久化：`documents`
 - 不持久化：编辑状态和临时内容
+
+### 5.5 useUIActionStore
+
+**状态**：
+- `actionHistory`: 用户操作历史记录
+- `userPreferences`: 用户偏好设置（主题、语言等）
+- `uiState`: UI 交互状态（侧边栏折叠状态等）
+- `sessionId`: 当前会话标识
+
+**操作**：
+- `recordAction`: 记录用户操作
+- `updatePreferences`: 更新用户偏好
+- `setUIState`: 设置 UI 状态
+- `clearActionHistory`: 清空操作历史
+
+**用途**：
+- 用户行为分析和体验优化
+- 个性化设置持久化
+- UI 状态恢复（折叠状态、窗口位置等）
+
+**持久化**：
+- 全部持久化到 LocalStorage
 
 ---
 

@@ -2,7 +2,8 @@
 // 管理对话驱动的UI操作（如自动选择模板、自动填写表单等）
 
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { devtools, persist } from 'zustand/middleware';
+import { immer } from 'zustand/middleware/immer';
 
 // ============================================================================
 // UI Action Types
@@ -37,10 +38,14 @@ export interface UIAction {
 
 interface UIActionStore {
   // State
+  currentSessionId: string | null; // 当前会话ID，用于隔离数据
   pendingActions: UIAction[];  // 待执行的操作队列
   executedActions: UIAction[]; // 已执行的操作历史
 
   // Actions
+  setCurrentSession: (sessionId: string) => void; // 切换会话并加载对应数据
+  saveSessionData: () => void; // 保存当前会话数据到 localStorage
+  loadSessionData: (sessionId: string) => void; // 从 localStorage 加载会话数据
   addAction: (type: UIActionType, payload: any, source?: 'dialog' | 'sse' | 'manual') => string;
   executeAction: (actionId: string) => void;
   clearAction: (actionId: string) => void;
@@ -52,78 +57,161 @@ interface UIActionStore {
 // Store Implementation
 // ============================================================================
 
+// Helper functions for session-based localStorage
+const getUIActionStorageKey = (sessionId: string) => `ui-action-session-${sessionId}`;
+
+const saveUIActionsToStorage = (sessionId: string, data: {
+  pendingActions: UIAction[];
+  executedActions: UIAction[];
+}) => {
+  try {
+    const key = getUIActionStorageKey(sessionId);
+    localStorage.setItem(key, JSON.stringify(data));
+    console.log(`[UIActionStore] Saved session data to ${key}`);
+  } catch (error) {
+    console.error('[UIActionStore] Failed to save session data:', error);
+  }
+};
+
+const loadUIActionsFromStorage = (sessionId: string): {
+  pendingActions: UIAction[];
+  executedActions: UIAction[];
+} | null => {
+  try {
+    const key = getUIActionStorageKey(sessionId);
+    const data = localStorage.getItem(key);
+    if (data) {
+      const parsed = JSON.parse(data);
+      console.log(`[UIActionStore] Loaded session data from ${key}`);
+      return {
+        pendingActions: parsed.pendingActions || [],
+        executedActions: parsed.executedActions || [],
+      };
+    }
+  } catch (error) {
+    console.error('[UIActionStore] Failed to load session data:', error);
+  }
+  return null;
+};
+
 export const useUIActionStore = create<UIActionStore>()(
   devtools(
-    (set, get) => ({
-      // Initial state
-      pendingActions: [],
-      executedActions: [],
+    persist(
+      immer((set, get) => ({
+        // Initial state
+        currentSessionId: null,
+        pendingActions: [],
+        executedActions: [],
 
-      // Add a new UI action
-      addAction: (type, payload, source = 'dialog') => {
-        const actionId = `action-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // 设置当前会话并加载对应数据
+        setCurrentSession: (sessionId) =>
+          set((state) => {
+            console.log(`[UIActionStore] Switching to session: ${sessionId}`);
 
-        const newAction: UIAction = {
-          id: actionId,
-          type,
-          payload,
-          timestamp: Date.now(),
-          executed: false,
-          source,
-        };
+            // 保存当前会话数据（如果有）
+            if (state.currentSessionId) {
+              saveUIActionsToStorage(state.currentSessionId, {
+                pendingActions: state.pendingActions,
+                executedActions: state.executedActions,
+              });
+            }
 
-        console.log('[UIActionStore] Adding action:', newAction);
+            // 加载新会话数据
+            const sessionData = loadUIActionsFromStorage(sessionId);
+            state.currentSessionId = sessionId;
+            state.pendingActions = sessionData?.pendingActions || [];
+            state.executedActions = sessionData?.executedActions || [];
+          }),
 
-        set((state) => ({
-          pendingActions: [...state.pendingActions, newAction],
-        }));
+        // 保存当前会话数据
+        saveSessionData: () => {
+          const state = get();
+          if (state.currentSessionId) {
+            saveUIActionsToStorage(state.currentSessionId, {
+              pendingActions: state.pendingActions,
+              executedActions: state.executedActions,
+            });
+          }
+        },
 
-        return actionId;
-      },
+        // 加载会话数据
+        loadSessionData: (sessionId) =>
+          set((state) => {
+            const sessionData = loadUIActionsFromStorage(sessionId);
+            if (sessionData) {
+              state.pendingActions = sessionData.pendingActions;
+              state.executedActions = sessionData.executedActions;
+            }
+          }),
 
-      // Mark action as executed
-      executeAction: (actionId) => {
-        console.log('[UIActionStore] Executing action:', actionId);
+        // Add a new UI action
+        addAction: (type, payload, source = 'dialog') => {
+          const actionId = `action-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-        set((state) => {
-          const action = state.pendingActions.find((a) => a.id === actionId);
-          if (!action) return state;
-
-          return {
-            pendingActions: state.pendingActions.filter((a) => a.id !== actionId),
-            executedActions: [
-              ...state.executedActions,
-              { ...action, executed: true },
-            ],
+          const newAction: UIAction = {
+            id: actionId,
+            type,
+            payload,
+            timestamp: Date.now(),
+            executed: false,
+            source,
           };
-        });
-      },
 
-      // Remove action without executing
-      clearAction: (actionId) => {
-        console.log('[UIActionStore] Clearing action:', actionId);
+          console.log('[UIActionStore] Adding action:', newAction);
 
-        set((state) => ({
-          pendingActions: state.pendingActions.filter((a) => a.id !== actionId),
-        }));
-      },
+          set((state) => {
+            state.pendingActions.push(newAction);
+          });
 
-      // Clear all pending actions
-      clearAllPendingActions: () => {
-        console.log('[UIActionStore] Clearing all pending actions');
+          return actionId;
+        },
 
-        set({
-          pendingActions: [],
-        });
-      },
+        // Mark action as executed
+        executeAction: (actionId) => {
+          console.log('[UIActionStore] Executing action:', actionId);
 
-      // Get latest action by type
-      getLatestActionByType: (type) => {
-        const { pendingActions } = get();
-        const actions = pendingActions.filter((a) => a.type === type);
-        return actions.length > 0 ? actions[actions.length - 1] : null;
-      },
-    }),
+          set((state) => {
+            const action = state.pendingActions.find((a) => a.id === actionId);
+            if (!action) return;
+
+            state.pendingActions = state.pendingActions.filter((a) => a.id !== actionId);
+            state.executedActions.push({ ...action, executed: true });
+          });
+        },
+
+        // Remove action without executing
+        clearAction: (actionId) => {
+          console.log('[UIActionStore] Clearing action:', actionId);
+
+          set((state) => {
+            state.pendingActions = state.pendingActions.filter((a) => a.id !== actionId);
+          });
+        },
+
+        // Clear all pending actions
+        clearAllPendingActions: () => {
+          console.log('[UIActionStore] Clearing all pending actions');
+
+          set((state) => {
+            state.pendingActions = [];
+          });
+        },
+
+        // Get latest action by type
+        getLatestActionByType: (type) => {
+          const { pendingActions } = get();
+          const actions = pendingActions.filter((a) => a.type === type);
+          return actions.length > 0 ? actions[actions.length - 1] : null;
+        },
+      })),
+      {
+        name: 'ui-action-store',
+        partialize: (state) => ({
+          // Don't persist session data - managed by session-based localStorage
+          // Don't persist currentSessionId, pendingActions, or executedActions
+        }),
+      }
+    ),
     { name: 'UIActionStore' }
   )
 );

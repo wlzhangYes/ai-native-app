@@ -29,21 +29,22 @@ export function SessionsList() {
   const [isCreating, setIsCreating] = useState(false);
 
   // ====================================================================
-  // Fetch Sessions on Mount
+  // Fetch Sessions on Mount and Auto-Initialize
   // ====================================================================
 
   useEffect(() => {
     const initSessions = async () => {
-      await fetchProjects({ activeOnly: true });
+      console.log('[SessionsList] Initializing sessions...');
 
-      // Auto-select first session if none selected
-      if (!currentProjectId && projects.length > 0) {
-        setCurrentProject(projects[0].id);
-      }
+      // Fetch projects from server
+      await fetchProjects({ activeOnly: true });
     };
 
     initSessions();
   }, []); // Only run once on mount
+
+  // Note: Session auto-selection logic moved to App.tsx for global initialization
+  // This component now focuses only on UI presentation
 
   // ====================================================================
   // Session Actions

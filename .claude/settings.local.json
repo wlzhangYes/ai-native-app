@@ -57,7 +57,9 @@
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nchore: 添加 frontend/deploy 配置文件\n\n- 添加生产环境变量配置 (.env.production)\n- 添加自动化部署脚本 (deploy.sh)\n- 添加 Nginx 服务器配置 (nginx.conf)\n- 添加部署说明文档 (README.md)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git commit:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(open:*)"
     ],
     "deny": [],
     "ask": []
