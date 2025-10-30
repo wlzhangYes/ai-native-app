@@ -1,9 +1,8 @@
-import { useCallback, useEffect } from 'react';
-import { useWorkflowStages } from '../business/workflow/useWorkflowStages';
-import { useDocuments } from '../business/document/useDocuments';
+import { useCallback, useEffect, useRef } from 'react';
+import { useWorkflowStore } from '../../stores/useWorkflowStore';
+import { useDialogStore } from '../../stores/useDialogStore';
 import { useTodos } from '../business/dialog/useTodos';
-import type { WorkflowStage, Task } from '../../types/workflow';
-import type { Document } from '../../types/models';
+import type { Workflow } from '../../types/models';
 
 interface UseAIWorkflowOptions {
   sessionId: string;
@@ -16,7 +15,7 @@ interface UseAIWorkflowOptions {
  * 整合工作流阶段、任务、文档、TodoWrite 等功能
  * 提供统一的 AI 工作流管理接口
  *
- * 依赖：useWorkflowStages, useDocuments, useTodos (Business Layer)
+ * 依赖：useWorkflowStore (Zustand), useDialogStore (Zustand), useTodos (Business Layer)
  *
  * @param options - 配置选项
  * @returns 工作流相关操作和状态
@@ -24,199 +23,180 @@ interface UseAIWorkflowOptions {
  * @example
  * ```tsx
  * const {
- *   stages,
- *   documents,
- *   addStageWithTasks,
- *   completeTask
+ *   workflow,
+ *   todos,
+ *   expandedKeys,
+ *   selectedKeys,
+ *   setExpandedKeys,
+ *   setSelectedKeys
  * } = useAIWorkflow({ sessionId: 'project-001' });
  * ```
  */
 export function useAIWorkflow(options: UseAIWorkflowOptions) {
   const { sessionId, autoSyncTodos = true } = options;
 
-  const {
-    stages,
-    addStage,
-    updateStage,
-    updateStageStatus,
-    addTaskToStage,
-    updateTaskInStage,
-    getStageProgress,
-  } = useWorkflowStages();
+  // Workflow Store
+  const workflow = useWorkflowStore((state) => state.workflow);
+  const activeStageId = useWorkflowStore((state) => state.activeStageId);
+  const expandedKeys = useWorkflowStore((state) => state.expandedKeys);
+  const selectedKeys = useWorkflowStore((state) => state.selectedKeys);
+  const setExpandedKeys = useWorkflowStore((state) => state.setExpandedKeys);
+  const setSelectedKeys = useWorkflowStore((state) => state.setSelectedKeys);
+  const setActiveStage = useWorkflowStore((state) => state.setActiveStage);
+  const setSelectedDocument = useWorkflowStore((state) => state.setSelectedDocument);
+  const setSelectedTask = useWorkflowStore((state) => state.setSelectedTask);
+  const syncTodosToTasks = useWorkflowStore((state) => state.syncTodosToTasks);
 
-  const {
-    documents,
-    selectedDocument,
-    addDocument,
-    updateDocument,
-    selectDocument,
-  } = useDocuments();
+  // Dialog Store (for tool calls)
+  const toolCalls = useDialogStore((state) => state.toolCalls);
 
-  const { todos } = useTodos();
+  // Extract todos from tool calls
+  const { todos } = useTodos(toolCalls);
 
-  // 自动同步 TodoWrite 到工作流
+  // Track last synced todos to avoid infinite loops
+  const lastTodosRef = useRef<string>('');
+
+  // Auto-sync todos to workflow tasks
   useEffect(() => {
     if (!autoSyncTodos || todos.length === 0) return;
 
-    // 查找或创建 "任务列表" 阶段
-    let taskListStage = stages.find((s) => s.name === '任务列表');
+    // Compare todos by JSON string to avoid infinite loops
+    const todosKey = JSON.stringify(todos);
+    if (todosKey !== lastTodosRef.current) {
+      console.log('[useAIWorkflow] Auto-syncing todos to tasks:', todos);
+      syncTodosToTasks(todos);
+      lastTodosRef.current = todosKey;
+    }
+  }, [todos, autoSyncTodos, syncTodosToTasks]);
 
-    if (!taskListStage) {
-      // 创建新阶段
-      const newStage: WorkflowStage = {
-        id: 'stage-tasks',
-        name: '任务列表',
-        status: 'in_progress',
-        tasks: [],
-      };
-      addStage(newStage);
-      taskListStage = newStage;
+  // Select stage
+  const selectStage = useCallback(
+    (stageId: string) => {
+      setActiveStage(stageId);
+      setSelectedKeys([`stage-${stageId}`]);
+    },
+    [setActiveStage, setSelectedKeys]
+  );
+
+  // Select task
+  const selectTask = useCallback(
+    (stageId: string, taskId: string) => {
+      setSelectedTask(taskId);
+      setSelectedKeys([`task-${taskId}`]);
+    },
+    [setSelectedTask, setSelectedKeys]
+  );
+
+  // Select document
+  const selectDocument = useCallback(
+    (documentId: string) => {
+      setSelectedDocument(documentId);
+      setSelectedKeys([`doc-${documentId}`]);
+    },
+    [setSelectedDocument, setSelectedKeys]
+  );
+
+  // Expand all stages
+  const expandAll = useCallback(() => {
+    if (!workflow) return;
+    const allKeys = workflow.stages.map((stage) => `stage-${stage.id}`);
+    setExpandedKeys(allKeys);
+  }, [workflow, setExpandedKeys]);
+
+  // Collapse all stages
+  const collapseAll = useCallback(() => {
+    setExpandedKeys([]);
+  }, [setExpandedKeys]);
+
+  // Get stage by id
+  const getStage = useCallback(
+    (stageId: string) => {
+      return workflow?.stages.find((s) => s.id === stageId);
+    },
+    [workflow]
+  );
+
+  // Get task by id
+  const getTask = useCallback(
+    (stageId: string, taskId: string) => {
+      const stage = workflow?.stages.find((s) => s.id === stageId);
+      return stage?.tasks.find((t) => t.id === taskId);
+    },
+    [workflow]
+  );
+
+  // Get document by id
+  const getDocument = useCallback(
+    (documentId: string) => {
+      return workflow?.documents?.find((d) => d.id === documentId);
+    },
+    [workflow]
+  );
+
+  // Get workflow progress
+  const getProgress = useCallback(() => {
+    if (!workflow || workflow.stages.length === 0) return 0;
+
+    const totalTasks = workflow.stages.reduce(
+      (sum, stage) => sum + stage.tasks.length,
+      0
+    );
+
+    if (totalTasks === 0) return 0;
+
+    const completedTasks = workflow.stages.reduce(
+      (sum, stage) =>
+        sum + stage.tasks.filter((t) => t.status === 'completed').length,
+      0
+    );
+
+    return Math.round((completedTasks / totalTasks) * 100);
+  }, [workflow]);
+
+  // Check if should use ThoughtChain display
+  const shouldUseThoughtChain = useCallback(() => {
+    // 有 todos 且没有工作流 → 使用 ThoughtChain
+    if (todos.length > 0 && !workflow) {
+      return true;
     }
 
-    // 同步 todos 到 tasks
-    const tasks: Task[] = todos.map((todo) => ({
-      id: `task-${Date.now()}-${Math.random()}`,
-      name: todo.content,
-      status: todo.status,
-      description: todo.content,
-    }));
+    // 工作流只有一个阶段且是自动生成的 'stage-todos' → 使用 ThoughtChain
+    if (workflow?.stages.length === 1 && workflow.stages[0].id === 'stage-todos') {
+      return true;
+    }
 
-    updateStage(taskListStage.id, {
-      ...taskListStage,
-      tasks,
-      status:
-        todos.every((t) => t.status === 'completed')
-          ? 'completed'
-          : todos.some((t) => t.status === 'in_progress')
-            ? 'in_progress'
-            : 'pending',
-    });
-  }, [todos, stages, autoSyncTodos, addStage, updateStage]);
-
-  // 添加带任务的阶段
-  const addStageWithTasks = useCallback(
-    (stage: Omit<WorkflowStage, 'id'>, tasks: Omit<Task, 'id'>[]) => {
-      const stageId = `stage-${Date.now()}`;
-      const stageTasks: Task[] = tasks.map((task, index) => ({
-        ...task,
-        id: `task-${stageId}-${index}`,
-      }));
-
-      addStage({
-        ...stage,
-        id: stageId,
-        tasks: stageTasks,
-      });
-
-      return stageId;
-    },
-    [addStage]
-  );
-
-  // 完成任务（自动更新阶段状态）
-  const completeTask = useCallback(
-    (stageId: string, taskId: string) => {
-      updateTaskInStage(stageId, taskId, { status: 'completed' });
-
-      // 检查该阶段所有任务是否完成
-      const stage = stages.find((s) => s.id === stageId);
-      if (stage && stage.tasks) {
-        const allCompleted = stage.tasks.every(
-          (t) => t.id === taskId || t.status === 'completed'
-        );
-        if (allCompleted) {
-          updateStageStatus(stageId, 'completed');
-        }
-      }
-    },
-    [stages, updateTaskInStage, updateStageStatus]
-  );
-
-  // 开始任务
-  const startTask = useCallback(
-    (stageId: string, taskId: string) => {
-      updateTaskInStage(stageId, taskId, { status: 'in_progress' });
-      updateStageStatus(stageId, 'in_progress');
-    },
-    [updateTaskInStage, updateStageStatus]
-  );
-
-  // 添加文档到阶段
-  const addDocumentToStage = useCallback(
-    (stageId: string, document: Omit<Document, 'id'>) => {
-      const docId = `doc-${Date.now()}`;
-      const newDoc: Document = {
-        ...document,
-        id: docId,
-      };
-
-      addDocument(newDoc);
-
-      // 更新阶段的文档引用
-      const stage = stages.find((s) => s.id === stageId);
-      if (stage) {
-        const documents = stage.documents || [];
-        updateStage(stageId, {
-          ...stage,
-          documents: [...documents, docId],
-        });
-      }
-
-      return docId;
-    },
-    [stages, addDocument, updateStage]
-  );
-
-  // 获取阶段的所有文档
-  const getStageDocuments = useCallback(
-    (stageId: string): Document[] => {
-      const stage = stages.find((s) => s.id === stageId);
-      if (!stage || !stage.documents) return [];
-
-      return documents.filter((doc) => stage.documents?.includes(doc.id));
-    },
-    [stages, documents]
-  );
-
-  // 获取工作流整体进度
-  const getOverallProgress = useCallback((): number => {
-    if (stages.length === 0) return 0;
-
-    const totalProgress = stages.reduce((sum, stage) => {
-      return sum + getStageProgress(stage.id);
-    }, 0);
-
-    return Math.round(totalProgress / stages.length);
-  }, [stages, getStageProgress]);
+    // 其他情况使用 Tree（多阶段工作流）
+    return false;
+  }, [todos, workflow]);
 
   return {
-    // 工作流数据
-    stages,
-    documents,
-    selectedDocument,
+    // Workflow data
+    workflow,
     todos,
+    activeStageId,
+    expandedKeys,
+    selectedKeys,
 
-    // 阶段操作
-    addStage,
-    updateStage,
-    updateStageStatus,
-    addStageWithTasks,
+    // Tree state management
+    setExpandedKeys,
+    setSelectedKeys,
 
-    // 任务操作
-    addTaskToStage,
-    updateTaskInStage,
-    completeTask,
-    startTask,
-    getStageProgress,
-
-    // 文档操作
-    addDocument,
-    updateDocument,
+    // Selection operations
+    selectStage,
+    selectTask,
     selectDocument,
-    addDocumentToStage,
-    getStageDocuments,
 
-    // 工作流统计
-    getOverallProgress,
+    // Expand/collapse operations
+    expandAll,
+    collapseAll,
+
+    // Query operations
+    getStage,
+    getTask,
+    getDocument,
+    getProgress,
+
+    // Display mode
+    shouldUseThoughtChain,
   };
 }
