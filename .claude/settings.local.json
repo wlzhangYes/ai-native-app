@@ -59,7 +59,12 @@
       "Bash(git commit:*)",
       "Bash(tree:*)",
       "Bash(find:*)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "Bash(chmod:*)",
+      "Bash(./deploy.sh:*)",
+      "Bash(scp:*)",
+      "Bash(sshpass:*)",
+      "Bash(brew install:*)"
     ],
     "deny": [],
     "ask": []
